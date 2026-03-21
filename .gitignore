@@ -1,0 +1,24 @@
+# Python
+venv311/
+env/
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+
+# ChromaDB
+chroma_db/
+
+# Node
+node_modules/
+dist/
+
+# Logs
+*.log
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
