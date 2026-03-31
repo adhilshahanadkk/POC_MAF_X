@@ -14,8 +14,8 @@ class RAGState(TypedDict):
 def get_llm():
     return ChatGoogleGenerativeAI(
         model=GEMINI_MODEL,
-        temperature=0.2,
-        api_key=GOOGLE_API_KEY
+        google_api_key=GOOGLE_API_KEY,
+        temperature=0.2
     )
 
 def extract_text_from_response(response):
@@ -58,10 +58,35 @@ def extract_text_from_response(response):
     return str(response).strip()
 
 def retrieve_node(state: RAGState, retriever):
+    """
+    Retrieves relevant document chunks based on the user query.
+    
+    Args:
+        state (RAGState): Current state containing the user query
+        retriever: Vector store retriever for finding relevant documents
+        
+    Returns:
+        dict: Updated state with retrieved documents in 'docs' field
+    """
     docs = retriever.invoke(state["query"])
     return {"docs": docs}
 
 def answer_node(state: RAGState):
+    """
+    Generates an answer to the user query based on retrieved documents.
+    
+    Args:
+        state (RAGState): Current state containing query and retrieved documents
+        
+    Returns:
+        dict: Updated state with generated answer and sources in 'answer' field
+              
+    Process:
+        1. Formats retrieved documents with metadata as context
+        2. Creates prompt with context and question
+        3. Generates answer using LLM
+        4. Formats response with sources
+    """
     llm = get_llm()
 
     context_blocks = []
@@ -180,6 +205,22 @@ def router(state: RAGState):
 
 
 def build_rag_chain(retriever):
+    """
+    Builds and returns a complete RAG processing chain with retrieval and answer generation.
+    
+    Args:
+        retriever: Vector store retriever for finding relevant documents
+        
+    Returns:
+        function: A run function that takes a query string and returns the RAG-generated answer
+                 with sources, or error message if processing fails.
+                 
+    Process:
+        1. Creates StateGraph with RAGState
+        2. Adds retrieve and answer nodes
+        3. Sets up workflow: retrieve → answer → END
+        4. Compiles graph and returns run function
+    """
     builder = StateGraph(RAGState)
 
     builder.add_node("retrieve", lambda s: retrieve_node(s, retriever))

@@ -1,16 +1,8 @@
-from langchain_google_genai import GoogleGenerativeAI
-from config.settings import GOOGLE_API_KEY
 from config.settings import GEMINI_MODEL
-
 from agents.llm_provider import get_llm
 
 llm = get_llm(temperature=0.3)
 
-
-# llm = GoogleGenerativeAI(
-#     model=GEMINI_MODEL,
-#     google_api_key=GOOGLE_API_KEY
-# )
 
 def supervisor_node(state):
     query = state.get("query")

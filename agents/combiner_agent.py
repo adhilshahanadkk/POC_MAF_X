@@ -1,16 +1,8 @@
-from langchain_google_genai import GoogleGenerativeAI
-from config.settings import GOOGLE_API_KEY
 from datetime import datetime
-
-
 from agents.llm_provider import get_llm
 
 llm = get_llm(temperature=0.0)
 
-# llm = GoogleGenerativeAI(
-#     model=GEMINI_MODEL,
-#     google_api_key=GOOGLE_API_KEY
-# )
 
 def combiner_node(state):
     results=state.get("multi_results", [])

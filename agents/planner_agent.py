@@ -1,10 +1,7 @@
-from langchain_google_genai import GoogleGenerativeAI
-from config.settings import GOOGLE_API_KEY
 from langchain_core.prompts import PromptTemplate
 from database.mssql_connection import db as db_mssql
 from database.mysql_connection import db as db_mysql
 from agents.llm_provider import get_llm
-from langchain_core.prompts import PromptTemplate
 import json
 import re
 
@@ -102,11 +99,6 @@ def planner_agent_node(state):
     input_variables=["query", "mysql_summary", "mssql_summary"],
     template=planner_template
     )
-    # prompt=MSSQL_PROMPT.partial(
-    #     {"query": query},
-    #     {"mysql_summary":get_condensed_schema(db_mssql)},
-    #     {"mssql_summary":get_condensed_schema(db_mysql)}
-    # )
     prompt = planner_prompt.format(
         query=query,
         mysql_summary=get_condensed_schema(db_mysql), 

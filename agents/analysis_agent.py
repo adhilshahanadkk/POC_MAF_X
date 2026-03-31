@@ -1,11 +1,6 @@
-from langchain_google_genai import GoogleGenerativeAI
-from config.settings import GOOGLE_API_KEY
-from config.settings import GEMINI_MODEL
+from agents.llm_provider import get_llm
 
-llm = GoogleGenerativeAI(
-    model=GEMINI_MODEL,
-    google_api_key=GOOGLE_API_KEY
-)
+llm = get_llm(temperature=0.2)
 
 def analysis_agent_node(state):
     result = state.get("sql_result")
@@ -13,6 +8,9 @@ def analysis_agent_node(state):
     explanation = llm.invoke(
         f"Explain this database result in simple language:\n{result}"
     )
+
+    if hasattr(explanation, "content"):
+        explanation = explanation.content
 
     return {"final_output": explanation}
 

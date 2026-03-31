@@ -2,10 +2,10 @@ import ChatWidget from '../components/ChatWidget';
 
 const AGENTS = [
   { icon: '🧠', name: 'Supervisor', desc: 'High-level intent classifier. Routes your query to the right specialist using Gemini LLM.', tag: 'Orchestrator', color: 'rgba(59,130,246,0.12)', tagColor: '#3b82f6' },
+  { icon: '🗺️', name: 'Planner', desc: 'Decomposes complex cross-domain queries into a sequential execution plan for multiple agents.', tag: 'Multi-Agent', color: 'rgba(236,72,153,0.12)', tagColor: '#ec4899' },
   { icon: '📊', name: 'MSSQL Analyst', desc: 'Queries commodity prices, financial trends, and historical market data from the MSSQL warehouse.', tag: 'Market Data', color: 'rgba(245,158,11,0.12)', tagColor: '#f59e0b' },
   { icon: '👤', name: 'MySQL Agent', desc: 'Handles user profiles, account details, and subscription status from the MySQL user database.', tag: 'User Data', color: 'rgba(16,185,129,0.12)', tagColor: '#10b981' },
   { icon: '📚', name: 'RAG Researcher', desc: 'Retrieves context from uploaded documents, PDFs, and WordPress content using ChromaDB vector search.', tag: 'Documents', color: 'rgba(139,92,246,0.12)', tagColor: '#8b5cf6' },
-  { icon: '🗺️', name: 'Planner', desc: 'Decomposes complex cross-domain queries into a sequential execution plan for multiple agents.', tag: 'Multi-Agent', color: 'rgba(236,72,153,0.12)', tagColor: '#ec4899' },
   { icon: '📈', name: 'Chart Agent', desc: 'Automatically extracts numerical data from AI answers and renders professional visualizations.', tag: 'Visualization', color: 'rgba(6,182,212,0.12)', tagColor: '#06b6d4' },
 ];
 

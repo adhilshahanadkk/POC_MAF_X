@@ -9,6 +9,13 @@ const AGENTS = [
     tagStyle: { background: 'rgba(59,130,246,0.1)', color: '#60a5fa' },
   },
   {
+    icon: '🗺️', name: 'Planner Agent', role: 'Multi-Agent Coordinator',
+    color: 'rgba(236,72,153,0.12)', tagColor: '#ec4899',
+    desc: 'Receives complex cross-domain queries and decomposes them into a sequential JSON execution plan. Manages dependency injection between agents using {prev_result} placeholders.',
+    tags: ['Multi-Agent', 'Planning', 'JSON Plans'],
+    tagStyle: { background: 'rgba(236,72,153,0.1)', color: '#f472b6' },
+  },
+  {
     icon: '📊', name: 'MSSQL Analyst', role: 'Market Data',
     color: 'rgba(245,158,11,0.12)', tagColor: '#f59e0b',
     desc: 'Queries the MSSQL CommodityPrices database. Handles financial trends, commodity pricing, historical fluctuations, volatility analysis, and spread calculations.',
@@ -29,13 +36,7 @@ const AGENTS = [
     tags: ['ChromaDB', 'Vector Search', 'LangChain'],
     tagStyle: { background: 'rgba(139,92,246,0.1)', color: '#a78bfa' },
   },
-  {
-    icon: '🗺️', name: 'Planner Agent', role: 'Multi-Agent Coordinator',
-    color: 'rgba(236,72,153,0.12)', tagColor: '#ec4899',
-    desc: 'Receives complex cross-domain queries and decomposes them into a sequential JSON execution plan. Manages dependency injection between agents using {prev_result} placeholders.',
-    tags: ['Multi-Agent', 'Planning', 'JSON Plans'],
-    tagStyle: { background: 'rgba(236,72,153,0.1)', color: '#f472b6' },
-  },
+  
   {
     icon: '⚙️', name: 'Executor & Combiner', role: 'Orchestration',
     color: 'rgba(6,182,212,0.12)', tagColor: '#06b6d4',
@@ -57,6 +58,16 @@ const AGENTS = [
     tags: ['PDF', 'DOCX', 'ReportLab'],
     tagStyle: { background: 'rgba(168,85,247,0.1)', color: '#c084fc' },
   },
+  {
+    icon: '🗄️',
+    name: 'Vector DB',
+    role: 'Document Intelligence',
+    color: 'rgba(139,92,246,0.12)',
+    tagColor: '#8b5cf6',
+    desc: 'Performs semantic search against ChromaDB to answer questions from uploaded PDFs, DOCX files, CSVs, and WordPress content. Great for policy, manual, and knowledge-base questions.',
+    tags: ['ChromaDB', 'Vector Search', 'LangChain'],
+    tagStyle: { background: 'rgba(139,92,246,0.1)', color: '#a78bfa' },
+  }
 ];
 
 const TECH = [
@@ -68,6 +79,8 @@ const TECH = [
   { icon: '⚛️', name: 'React + Vite', desc: 'Frontend SPA with instant HMR' },
   { icon: '🐬', name: 'MySQL', desc: 'User profile & subscription store' },
   { icon: '🏢', name: 'MSSQL', desc: 'Commodity pricing data warehouse' },
+  { icon: '☁️', name: 'GCP', desc: 'Cloud hosting, Vertex AI & infrastructure' },
+  { icon: '🤗', name: 'Hugging Face', desc: 'Open-source embedding models & transformers' },
 ];
 
 const FLOW = [

@@ -1,6 +1,8 @@
 langchain
 langchain-community
 langchain-google-genai
+langchain-google-vertexai
+google-genai
 langchain-experimental
 langgraph
 sqlalchemy
@@ -14,9 +16,8 @@ sentence-transformers
 python-docx
 reportlab
 chromadb
-langchain-google-vertexai
+google-cloud-aiplatform
 gdown
-google-generativeai
 matplotlib
 pillow
 requests

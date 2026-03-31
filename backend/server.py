@@ -21,7 +21,8 @@ from io import BytesIO
 from typing import List
 
 import gdown
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,7 +36,7 @@ os.chdir(PROJECT_ROOT)  # so relative paths (data/, chroma_db/) resolve correctl
 
 from graph.workflow import build_graph
 from agents.rag_agents.rag_agent import RAGAgent
-from config.settings import GOOGLE_API_KEY, GEMINI_MODEL
+from config.settings import GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, GOOGLE_API_KEY, GEMINI_MODEL
 from backend.report_generator import generate_pdf, generate_docx
 
 
@@ -107,6 +108,9 @@ def _clear_docs_and_chroma():
 # ═══════════════════════════════════════════════════════════════════════════════
 @app.on_event("startup")
 async def startup():
+    # Google GenAI client is auto-configured via GOOGLE_API_KEY and GOOGLE_GENAI_USE_VERTEXAI env vars
+    print(f"[server] Google GenAI configured (project={GOOGLE_CLOUD_PROJECT}, location={GOOGLE_CLOUD_LOCATION})")
+
     print("[server] Compiling LangGraph workflow...")
     get_graph()
     print("[server] ✅ LangGraph ready.")
@@ -295,17 +299,22 @@ async def upload_files(files: List[UploadFile] = File(...)):
 
 
 def _extract_image_text(img_bytes: bytes, filename: str) -> str:
-    from PIL import Image
-    genai.configure(api_key=GOOGLE_API_KEY)
-    model = genai.GenerativeModel(GEMINI_MODEL)
-    image = Image.open(io.BytesIO(img_bytes))
+    from PIL import Image as PILImage
+    client = genai.Client(api_key=GOOGLE_API_KEY)
+    
+    # Create image part from bytes
+    image_part = types.Part.from_bytes(data=img_bytes, mime_type="image/png")
+    
     prompt = (
         "You are analyzing a chart/graph image for retrieval-based Q&A.\n"
         "Extract: 1) Chart type/title 2) Axes labels 3) Key values (table if possible) "
         "4) Trends, peaks, outliers 5) Visible text/labels. Be precise."
     )
-    resp = model.generate_content([prompt, image])
-    return getattr(resp, "text", "") or str(resp)
+    resp = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[prompt, image_part]
+    )
+    return resp.text or str(resp)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

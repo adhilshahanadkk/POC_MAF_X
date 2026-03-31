@@ -122,7 +122,7 @@ const routeColour = {
 export default function ChatWidget() {
   const [open, setOpen]           = useState(false);
   const [messages, setMessages]   = useState([
-    { role: 'ai', text: "Hi! I'm **Transgraph AI**, your commodity risk intelligence assistant. Ask me about market prices, user subscriptions, or upload documents for analysis. 🚀" }
+    { role: 'ai', text: "Hi! I'm **Transgraph AI**, your commodity risk intelligence assistant."}
   ]);
   const [input, setInput]         = useState('');
   const [loading, setLoading]     = useState(false);

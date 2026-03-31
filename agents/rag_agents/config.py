@@ -7,9 +7,5 @@ ENV_PATH = PROJECT_ROOT / ".env"
 
 load_dotenv(dotenv_path=ENV_PATH, override=True)
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-
-if not GOOGLE_API_KEY:
-    raise RuntimeError(
-        f"Gemini API key not found. Expected GOOGLE_API_KEY or GEMINI_API_KEY in {ENV_PATH}"
-    )
+GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "project-fea13377-5812-4bae-9ee")
+GOOGLE_CLOUD_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
