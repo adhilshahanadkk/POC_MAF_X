@@ -264,7 +264,7 @@ async def download_report(req: ReportRequest):
 # ═══════════════════════════════════════════════════════════════════════════════
 @app.post("/api/upload", tags=["Upload"])
 async def upload_files(files: List[UploadFile] = File(...)):
-    _clear_docs_and_chroma()
+    os.makedirs(SAVE_DIR, exist_ok=True)
     injected, failed = [], []
 
     for file in files:
@@ -278,12 +278,14 @@ async def upload_files(files: List[UploadFile] = File(...)):
                 out_name = f"__image_extract__{base}.md"
                 with open(os.path.join(SAVE_DIR, out_name), "w", encoding="utf-8") as f:
                     f.write(f"Source image: {file.filename}\n\n{extracted}\n")
-                _uploaded_doc_names.append(out_name)
+                if out_name not in _uploaded_doc_names:
+                    _uploaded_doc_names.append(out_name)
                 injected.append(out_name)
             else:
                 with open(os.path.join(SAVE_DIR, file.filename), "wb") as f:
                     f.write(content)
-                _uploaded_doc_names.append(file.filename)
+                if file.filename not in _uploaded_doc_names:
+                    _uploaded_doc_names.append(file.filename)
                 injected.append(file.filename)
         except Exception as e:
             failed.append({"file": file.filename, "error": str(e)})
@@ -378,6 +380,26 @@ async def list_docs():
 async def clear_docs():
     _clear_docs_and_chroma()
     return {"status": "cleared"}
+
+
+@app.delete("/api/docs/{filename}", tags=["Upload"])
+async def delete_single_doc(filename: str):
+    """Remove a single document from the knowledge base."""
+    global _uploaded_doc_names
+    filepath = os.path.join(SAVE_DIR, filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(404, f"Document '{filename}' not found.")
+    os.remove(filepath)
+    _uploaded_doc_names = [d for d in _uploaded_doc_names if d != filename]
+    # Rebuild RAG with remaining docs, or clear chroma if none left
+    if _uploaded_doc_names:
+        rebuild_rag()
+    else:
+        if os.path.exists(CHROMA_DIR):
+            shutil.rmtree(CHROMA_DIR, ignore_errors=True)
+        global _rag_agent
+        _rag_agent = None
+    return {"status": "deleted", "filename": filename, "remaining_docs": list(_uploaded_doc_names)}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

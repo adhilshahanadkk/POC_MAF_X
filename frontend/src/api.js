@@ -43,6 +43,18 @@ export async function getUploadedDocs() {
   return data.docs;
 }
 
+/** Delete a single document from the knowledge base */
+export async function deleteDoc(filename) {
+  const { data } = await api.delete(`/api/docs/${encodeURIComponent(filename)}`);
+  return data; // { status, filename, remaining_docs }
+}
+
+/** Clear all uploaded documents from the knowledge base */
+export async function clearAllDocs() {
+  const { data } = await api.delete('/api/docs');
+  return data; // { status: "cleared" }
+}
+
 /** Download a report as PDF or DOCX (triggers browser file save) */
 export async function downloadReport(reportText, format = 'pdf', chartB64 = null) {
   const res = await api.post('/api/report', {

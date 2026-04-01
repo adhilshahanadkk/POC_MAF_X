@@ -50,13 +50,14 @@ report_agent:
 Uploaded documents available: {uploaded_docs_status} 
 Uploaded document names: {uploaded_docs_list}
 
-### ROUTING LOGIC & HIERARCHY
-- **Rule 1**: If the query mentions "report," "export," "summary," or "document," route to `report_agent`.
+### ROUTING LOGIC & HIERARCHY (Apply in order — first match wins)
+- **Rule 0 (HIGHEST PRIORITY)**: If uploaded documents are available (Uploaded documents available = yes), and the user's query is asking about data, content, or information that could plausibly come from those uploaded files (e.g., employee data from an Excel file, policy details from a PDF, any domain-specific question matching the uploaded file names), route to `rag_agent`. The user uploaded these files specifically to query them — always prioritize uploaded documents over database agents when documents are present and relevant.
+- **Rule 1**: If the query mentions "report," "export," "summary," or "document" (and is asking to generate/download one, not asking about document content), route to `report_agent`.
 - **Rule 2**: If the query requires a join or comparison between SQL data and RAG documents, or between MySQL and MSSQL, route to `multi_agent`.
-- **Rule 3**: If the query is a direct question about prices, route to `mssql_agent`.
-- **Rule 4**: If the query is a direct question about a specific user or their subscription, route to `mysql_agent`.
+- **Rule 3**: If NO documents are uploaded and the query is a direct question about commodity prices or market data, route to `mssql_agent`.
+- **Rule 4**: If NO documents are uploaded and the query is a direct question about a specific user or their subscription, route to `mysql_agent`.
 - **Rule 5**: If the query asks "How do I..." or "What is the policy for...", route to `rag_agent`.
-- **Rule 6**: If the request involves comparative analysis, volatility assessments, or multi-step mathematical aggregations (e.g., spreads, percentage changes, or trend detection), you must route to the Multi-Agent Planner. Use the planner even if the data resides in a single database to ensure the logic is decomposed into a structured analytical sequence.
+- **Rule 6**: Route to `multi_agent` ONLY when the query genuinely requires data from **two or more different sources** (e.g., MySQL user data combined with MSSQL market data, or database records combined with RAG documents). Do NOT route to multi_agent for single-source queries — even if they involve trend analysis, percentage changes, volatility, or aggregation. Those should go directly to the appropriate single agent (`mssql_agent` for market/commodity data, `mysql_agent` for user data).
 
 
 ### CONSTRAINT

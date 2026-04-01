@@ -95,9 +95,9 @@ def extract_chart_data(query: str, answer: str) -> dict | None:
         if not cleaned_data:
             return None
 
-        # Skip chart generation if only a single data point (not meaningful for visualization)
-        if len(cleaned_data) < 2:
-            print(f"[ChartAgent] Skipping chart: Only {len(cleaned_data)} data point(s), need at least 2")
+        # Skip chart generation if fewer than 3 data points (not meaningful for visualization)
+        if len(cleaned_data) < 3:
+            print(f"[ChartAgent] Skipping chart: Only {len(cleaned_data)} data point(s), need at least 3")
             return None
 
         chart_data["data"] = cleaned_data
@@ -142,11 +142,27 @@ def build_matplotlib_chart(chart_data: dict) -> io.BytesIO | None:
         ax.set_axisbelow(True)
         plt.xticks(rotation=30, ha="right", fontsize=9)
 
+        # Auto-scale Y-axis when values are very close together
+        val_min, val_max = min(values), max(values)
+        val_range = val_max - val_min
+        if val_max > 0 and val_range < val_max * 0.05:
+            # Values are within 5% of each other — zoom in to show differences
+            padding = max(val_range * 2, val_max * 0.01)
+            ax.set_ylim(val_min - padding, val_max + padding)
+
+        # Auto-detect precision needed to show meaningful differences
+        if val_range > 0:
+            import math
+            needed_decimals = max(2, -int(math.floor(math.log10(val_range))) + 2)
+            fmt = f"{{:,.{needed_decimals}f}}"
+        else:
+            fmt = "{:,.2f}"
+
         # Value labels on bars
         for bar in bars:
             height = bar.get_height()
             ax.annotate(
-                f"{height:,.2f}",
+                fmt.format(height),
                 xy=(bar.get_x() + bar.get_width() / 2, height),
                 xytext=(0, 5), textcoords="offset points",
                 ha="center", va="bottom", fontsize=8, color="#333"
@@ -164,6 +180,13 @@ def build_matplotlib_chart(chart_data: dict) -> io.BytesIO | None:
         ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=9)
         ax.yaxis.grid(True, linestyle="--", alpha=0.5, zorder=0)
         ax.set_axisbelow(True)
+
+        # Auto-scale Y-axis when values are very close together
+        val_min, val_max = min(values), max(values)
+        val_range = val_max - val_min
+        if val_max > 0 and val_range < val_max * 0.05:
+            padding = max(val_range * 2, val_max * 0.01)
+            ax.set_ylim(val_min - padding, val_max + padding)
 
     elif chart_type == "pie":
         wedges, texts, autotexts = ax.pie(

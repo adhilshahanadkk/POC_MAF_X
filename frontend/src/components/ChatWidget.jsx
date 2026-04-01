@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { sendChat, uploadFiles, injectFromDrive, clearChat, downloadReport } from '../api';
+import { sendChat, uploadFiles, injectFromDrive, clearChat, downloadReport, deleteDoc, clearAllDocs } from '../api';
 
 const SESSION_ID = 'user-' + Math.random().toString(36).slice(2, 10);
 
@@ -125,7 +125,7 @@ export default function ChatWidget() {
     { role: 'ai', text: "Hi! I'm **Transgraph AI**, your commodity risk intelligence assistant."}
   ]);
   const [input, setInput]         = useState('');
-  const [loading, setLoading]     = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const [showDrive, setShowDrive] = useState(false);
   const [driveUrl, setDriveUrl]   = useState('');
   const [uploadedDocs, setUploadedDocs] = useState([]);
@@ -136,10 +136,15 @@ export default function ChatWidget() {
   const messagesEndRef = useRef(null);
   const textareaRef   = useRef(null);
 
+  // Clear old docs on page load/reload — each session starts fresh
+  useEffect(() => {
+    clearAllDocs().catch(() => {});
+  }, []);
+
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+  }, [messages, pendingCount]);
 
   // Auto-resize textarea
   const handleInputChange = (e) => {
@@ -151,11 +156,11 @@ export default function ChatWidget() {
   // ── Send chat message ──────────────────────────────────────────────────────
   const handleSend = async () => {
     const q = input.trim();
-    if (!q || loading) return;
+    if (!q) return;
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
     setMessages(prev => [...prev, { role: 'user', text: q }]);
-    setLoading(true);
+    setPendingCount(c => c + 1);
     try {
       const res = await sendChat(q, SESSION_ID);
       setMessages(prev => [...prev, {
@@ -172,7 +177,7 @@ export default function ChatWidget() {
         text: `⚠️ Error: ${err?.response?.data?.detail || err.message || 'Could not reach the server.'}`,
       }]);
     } finally {
-      setLoading(false);
+      setPendingCount(c => c - 1);
     }
   };
 
@@ -232,6 +237,40 @@ export default function ChatWidget() {
     }]);
     setUploadStatus('');
     setUploadedDocs([]);
+  };
+
+  // ── Delete a single document ───────────────────────────────────────────────
+  const handleDeleteDoc = async (filename) => {
+    try {
+      const res = await deleteDoc(filename);
+      setUploadedDocs(res.remaining_docs || []);
+      setUploadStatus(`🗑️ Removed: ${filename}`);
+      setMessages(prev => [...prev, {
+        role: 'ai',
+        text: `🗑️ Document **${filename}** has been removed from the knowledge base.`,
+      }]);
+      setTimeout(() => setUploadStatus(''), 3000);
+    } catch (err) {
+      setUploadStatus(`⚠️ Failed to delete: ${err?.response?.data?.detail || err.message}`);
+      setTimeout(() => setUploadStatus(''), 4000);
+    }
+  };
+
+  // ── Clear all documents ────────────────────────────────────────────────────
+  const handleClearAllDocs = async () => {
+    try {
+      await clearAllDocs();
+      setUploadedDocs([]);
+      setUploadStatus('🗑️ All documents removed.');
+      setMessages(prev => [...prev, {
+        role: 'ai',
+        text: '🗑️ All documents have been removed from the knowledge base.',
+      }]);
+      setTimeout(() => setUploadStatus(''), 3000);
+    } catch (err) {
+      setUploadStatus(`⚠️ Failed to clear: ${err?.response?.data?.detail || err.message}`);
+      setTimeout(() => setUploadStatus(''), 4000);
+    }
   };
 
   return (
@@ -318,7 +357,7 @@ export default function ChatWidget() {
                 </div>
               </div>
             ))}
-            {loading && (
+            {pendingCount > 0 && (
               <div className="msg-row">
                 <div className="msg-avatar ai-av">🤖</div>
                 <div className="typing-bubble">
@@ -376,7 +415,6 @@ export default function ChatWidget() {
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                disabled={loading}
               />
 
               {/* Attach files */}
@@ -384,7 +422,6 @@ export default function ChatWidget() {
                 className="input-action"
                 onClick={() => fileInputRef.current?.click()}
                 title="Upload document (PDF, DOCX, CSV, XLSX, image)"
-                disabled={loading}
               >
                 <IconAttach />
               </button>
@@ -394,7 +431,6 @@ export default function ChatWidget() {
                 className="input-action"
                 onClick={() => setShowDrive(v => !v)}
                 title="Inject from Google Drive folder"
-                disabled={loading}
                 style={{ color: showDrive ? 'var(--accent-blue)' : undefined }}
               >
                 <IconDrive />
@@ -404,7 +440,7 @@ export default function ChatWidget() {
               <button
                 className="send-btn"
                 onClick={handleSend}
-                disabled={!input.trim() || loading}
+                disabled={!input.trim()}
                 title="Send message"
               >
                 <IconSend />
@@ -415,9 +451,31 @@ export default function ChatWidget() {
               <p className="upload-status" style={uploadStatus.startsWith('⚠') ? { color: '#ef4444', fontWeight: 600 } : undefined}>{uploadStatus}</p>
             )}
             {uploadedDocs.length > 0 && (
-              <p className="upload-status" style={{ marginTop: 2 }}>
-                📚 Active docs: {uploadedDocs.join(', ')}
-              </p>
+              <div className="active-docs-list">
+                <div className="active-docs-header">
+                  <span className="active-docs-label">📚 Active docs:</span>
+                  {uploadedDocs.length >= 2 && (
+                    <button className="clear-all-btn" onClick={handleClearAllDocs} title="Remove all documents">
+                      Clear All
+                    </button>
+                  )}
+                </div>
+                <div className="active-docs-chips">
+                  {uploadedDocs.map((doc) => (
+                    <span key={doc} className="doc-chip">
+                      <span className="doc-chip-name">{doc}</span>
+                      <button
+                        className="doc-chip-delete"
+                        onClick={() => handleDeleteDoc(doc)}
+                        title={`Remove ${doc}`}
+                        aria-label={`Remove ${doc}`}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </div>

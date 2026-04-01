@@ -81,6 +81,30 @@ def sql_agent_node(state):
 
     # 6. Step Four: Final Citation/Formatting
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    # Handle empty results — ask LLM to explain why and suggest alternatives
+    if not db_results or db_results == "[]" or db_results == []:
+        empty_prompt = f"""
+        You are a helpful data assistant. A database query was executed but returned NO results.
+        
+        User's original question: {original_query}
+        SQL that was tried (for your context only — do NOT show this to the user): {cleaned_sql}
+        
+        Requirements:
+        - Explain in simple, friendly language why no data was found.
+        - Suggest 1-2 alternative ways the user could rephrase their question.
+        - NEVER show SQL queries, code, or technical syntax to the user.
+        - Keep it concise — 2-3 sentences max plus suggestions.
+        
+        Return EXACT format:
+        Answer: <your friendly explanation and suggestions>
+        Database: user_db
+        Table: user, subscription
+        Timestamp: {timestamp}
+        """
+        llm_response = llm.invoke(empty_prompt)
+        final_text = llm_response.content if hasattr(llm_response, "content") else llm_response
+        return {"final_output": final_text.strip(), "should_visualize": False}
     
     citation_prompt = f"""
     You are a MySQL database agent.
@@ -92,6 +116,7 @@ def sql_agent_node(state):
     Requirements:
     - List specific values like names, dates, or IDs clearly.
     - If no data was found, state that clearly.
+    - NEVER include SQL queries, code, or technical database syntax in your response. The user should only see human-readable results.
 
     Return EXACT format:
     Answer: <clear summary>

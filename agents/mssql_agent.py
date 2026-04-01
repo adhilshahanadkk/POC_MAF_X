@@ -92,23 +92,53 @@ def mssql_agent_node(state):
 
     # 6. Step Four: Format the Final Narrative Answer
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    # Handle empty results — ask LLM to explain why and suggest alternatives
+    if not db_results or db_results == "[]" or db_results == []:
+        empty_prompt = f"""
+        You are a helpful data assistant. A database query was executed but returned NO results.
+        
+        User's original question: {original_query}
+        SQL that was tried (for your context only — do NOT show this to the user): {cleaned_sql}
+        
+        Requirements:
+        - Explain in simple, friendly language why no data was found.
+        - Analyze the SQL logic and suggest what might be wrong (e.g., the filter might be too specific, a value might not exist in the database, a column might not contain the expected data).
+        - Suggest 1-2 alternative ways the user could rephrase their question to get results.
+        - NEVER show SQL queries, code, or technical syntax to the user.
+        - Keep it concise — 2-3 sentences max plus suggestions.
+        
+        Return EXACT format:
+        Answer: <your friendly explanation and suggestions>
+        Database: CommodityDB
+        Table: CommodityPrices
+        Timestamp: {timestamp}
+        """
+        llm_response = llm.invoke(empty_prompt)
+        final_text = llm_response.content if hasattr(llm_response, "content") else llm_response
+        return {"final_output": final_text.strip(), "db_results": db_results, "sql_query": cleaned_sql, "should_visualize": False}
+    
+    # Build a context-aware description so the LLM knows what the data represents
+    task_context = f"Task/Step: {task}\n" if task else ""
     
     citation_prompt = f"""
-    You are a commodity market expert.
+    You are a commodity market data specialist.
     Based on the following SQL data result, provide a professional narrative answer.
     
     Original User Question: {original_query}
-    Raw Data Result: {db_results}
+    {task_context}Raw Data Result: {db_results}
 
     Requirements:
-    - You MUST include ALL rows from the SQL result — do not skip or summarize any commodity.
-    - For EVERY commodity, explicitly state its Average, Minimum, and Maximum price.
-    - Format each commodity clearly like: "COPPER: Avg $9,036 | Min $7,746 | Max $10,231"
+    - Interpret the data correctly based on the task context above.
+    - If the query was fetching IDs or lookups, report them as IDs — NOT as prices.
+    - If the query was fetching prices/dates, present them clearly with proper formatting.
+    - Include ALL rows from the result — do not skip any.
+    - For price data, format like: "COMMODITY: Avg $X | Min $Y | Max $Z" where applicable.
     - Mention that the data comes from the CommodityDB.
-    - Do NOT omit any commodity from the result.
+    - NEVER include SQL queries, code, or technical database syntax in your response. The user should only see human-readable results.
 
     Return EXACT format:
-    Answer: <your full explanation with ALL commodities and their min/max/avg values>
+    Answer: <your explanation based on what the data actually represents>
     Database: CommodityDB
     Table: CommodityPrices
     Timestamp: {timestamp}
@@ -117,5 +147,5 @@ def mssql_agent_node(state):
     llm_response = llm.invoke(citation_prompt)
     final_text = llm_response.content if hasattr(llm_response, "content") else llm_response
 
-    return {"final_output": final_text.strip(), "should_visualize": should_visualize}
+    return {"final_output": final_text.strip(), "db_results": db_results, "sql_query": cleaned_sql, "should_visualize": should_visualize}
 

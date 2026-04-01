@@ -47,11 +47,18 @@ def execute_agents_node(state):
                 finding = res.get("final_output", "No result returned.")
                 
                 # 4. Append to context so NEXT agent can see it
-                state["context_data"].append({
+                context_entry = {
                     "step_agent": agent_type,
                     "step_task": task_description,
                     "finding": finding
-                })
+                }
+                # Also pass raw data when available (for combiner/chart accuracy)
+                if res.get("db_results"):
+                    context_entry["db_results"] = res["db_results"]
+                if res.get("sql_query"):
+                    context_entry["sql_query"] = res["sql_query"]
+                    
+                state["context_data"].append(context_entry)
                 
                 success = True
 

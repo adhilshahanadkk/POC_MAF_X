@@ -44,20 +44,18 @@ def check_if_report_needed(state):
     
 def should_generate_chart(state):
     """
-    Determines if chart agent should be triggered based on:
-    1. Route (report queries skip charts)
-    2. should_visualize flag from planner/combiner
+    Determines if chart agent should be triggered.
+    Always route DB agent outputs through the chart agent — it will
+    decide whether the data is chartable (returns None if not).
+    Only skip for report/rag routes.
     """
     route = state.get("route", "")
-    should_visualize = state.get("should_visualize", False)
     
     if route == "report_agent":
         return "end"  # Reports don't need chart agent before report generation
     
-    if should_visualize:
-        return "graph_agent"
-    else:
-        return "end"   
+    # Always let chart agent evaluate DB outputs — it handles non-chartable data gracefully
+    return "graph_agent"
 
 
 
