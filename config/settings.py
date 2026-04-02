@@ -10,3 +10,4 @@ GOOGLE_GENAI_USE_VERTEXAI = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "true").lower
 MYSQL_URI = os.getenv("MYSQL_URI")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 MSSQL_URI = os.getenv("MSSQL_URI")
+VM_BASE_URL = os.getenv("VM_BASE_URL", "http://localhost:8010")

@@ -1,6 +1,7 @@
 from agents.sql_agent import sql_agent_node
 from agents.mssql_agent import mssql_agent_node
 from agents.rag_agent_node import rag_agent_node
+from agents.vm_agent_node import vm_agent_node
 
 def execute_agents_node(state):
     # 'full_tasks' is the list of dicts: [{"agent": "...", "task": "..."}]
@@ -39,6 +40,8 @@ def execute_agents_node(state):
                     res = mssql_agent_node(worker_input)
                 elif agent_type == "rag_agent":
                     res = rag_agent_node(worker_input)
+                elif agent_type == "vm_agent":
+                    res = vm_agent_node(worker_input)
                 else:
                     print(f"Unknown agent type: {agent_type}")
                     break

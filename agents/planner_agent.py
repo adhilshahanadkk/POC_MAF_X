@@ -56,9 +56,10 @@ You are a Project Manager Agent. Your goal is to decompose the user's {query} in
 ### AGENT DOMAINS & SCHEMA
 - mysql_agent (User Data): Profiles and subscriptions. 
     Tables: {mysql_summary}
-- mssql_agent (Market Data): Commodity pricing and trends. 
+- mssql_agent (Market Data): Raw commodity pricing data and historical price records. 
     Tables: {mssql_summary}
-- rag_agent (Documentation): Company policies and manuals.
+- rag_agent (Documentation): User-uploaded documents — policies, manuals, and files.
+- vm_agent (Permanent Knowledge Base): Transgraph commodity research articles, technical outlooks, price forecasts, and market analysis reports.
 
 
 ### PLANNING RULES (STRICT COMPLIANCE REQUIRED)

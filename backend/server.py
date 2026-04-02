@@ -36,7 +36,7 @@ os.chdir(PROJECT_ROOT)  # so relative paths (data/, chroma_db/) resolve correctl
 
 from graph.workflow import build_graph
 from agents.rag_agents.rag_agent import RAGAgent
-from config.settings import GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, GOOGLE_API_KEY, GEMINI_MODEL
+from config.settings import GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, GOOGLE_API_KEY, GEMINI_MODEL, VM_BASE_URL
 from backend.report_generator import generate_pdf, generate_docx
 
 
@@ -137,6 +137,17 @@ async def startup():
             print("[server] WordPress not reachable — skipping scheduler.")
     except Exception as e:
         print(f"[server] WordPress scheduler error: {e}")
+
+    # ── VM (Permanent Vector Store) health check ──
+    try:
+        import requests as _req
+        vm_resp = _req.get(f"{VM_BASE_URL}/", timeout=5)
+        if vm_resp.status_code == 200:
+            print(f"[server] ✅ VM permanent knowledge base connected at {VM_BASE_URL}")
+        else:
+            print(f"[server] ⚠️ VM responded with status {vm_resp.status_code}")
+    except Exception as e:
+        print(f"[server] ⚠️ VM not reachable at {VM_BASE_URL}: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -412,6 +423,7 @@ LAST_SYNC_FILE = os.path.join("data", "last_sync.json")
 async def status():
     wp_connected = False
     last_sync = None
+    vm_connected = False
     if os.path.exists(LAST_SYNC_FILE):
         try:
             with open(LAST_SYNC_FILE) as f:
@@ -423,4 +435,15 @@ async def status():
         wp_connected = test_connection()
     except Exception:
         pass
-    return JSONResponse({"wordpress_connected": wp_connected, "last_sync": last_sync})
+    try:
+        import requests as _req
+        vm_resp = _req.get(f"{VM_BASE_URL}/", timeout=5)
+        vm_connected = vm_resp.status_code == 200
+    except Exception:
+        pass
+    return JSONResponse({
+        "wordpress_connected": wp_connected,
+        "last_sync": last_sync,
+        "vm_connected": vm_connected,
+        "vm_url": VM_BASE_URL,
+    })

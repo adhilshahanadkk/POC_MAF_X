@@ -3,6 +3,7 @@ from typing import TypedDict, List
 from io import BytesIO
 from langgraph.graph import END, StateGraph
 from agents.rag_agent_node import rag_agent_node
+from agents.vm_agent_node import vm_agent_node
 
 from agents.supervisor_agent import supervisor_node
 from agents.sql_agent import sql_agent_node
@@ -71,6 +72,7 @@ def build_graph():
     workflow.add_node("mysql_agent", sql_agent_node)
     workflow.add_node("mssql_agent", mssql_agent_node)
     workflow.add_node("rag_agent", rag_agent_node)
+    workflow.add_node("vm_agent", vm_agent_node)
     workflow.add_node("report_agent", report_agent_node)
     workflow.add_node("planner", planner_agent_node)
     workflow.add_node("executor", execute_agents_node)
@@ -87,10 +89,10 @@ def build_graph():
         {
             "mysql_agent": "mysql_agent",
             "mssql_agent": "mssql_agent",
-            "rag_agent":"rag_agent",
+            "rag_agent": "rag_agent",
+            "vm_agent": "vm_agent",
             "report_agent": "report_agent",
             "multi_agent": "planner",
-
         },
     )
     # ---------- SINGLE-AGENT PATH ----------
@@ -112,6 +114,7 @@ def build_graph():
         }
     )
     workflow.add_edge("rag_agent", END)       # RAG = text only, no chart needed
+    workflow.add_edge("vm_agent", END)         # VM = text only, no chart needed
     workflow.add_edge("report_agent", END)
 
     # ---------- MULTI-AGENT PATH ----------
