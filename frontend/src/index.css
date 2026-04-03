@@ -583,6 +583,38 @@ body::before {
   flex-direction: column;
   gap: 16px;
   scroll-behavior: smooth;
+  position: relative;
+}
+
+/* Scroll-to-bottom FAB */
+.scroll-to-bottom-btn {
+  position: sticky;
+  bottom: 8px;
+  align-self: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border-active);
+  background: var(--bg-card);
+  color: var(--accent-cyan);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35), 0 0 0 1px rgba(59,130,246,0.15);
+  transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+  animation: fadeInUp 0.25s ease;
+  z-index: 10;
+  flex-shrink: 0;
+}
+.scroll-to-bottom-btn:hover {
+  transform: scale(1.12);
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+  color: white;
+  box-shadow: 0 6px 24px var(--accent-glow);
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* Individual message bubbles */
@@ -666,6 +698,40 @@ body::before {
   background: rgba(59,130,246,0.12);
   color: var(--accent-cyan);
   border: 1px solid rgba(59,130,246,0.2);
+}
+
+/* ── Message metadata footer (Database / Table / Timestamp) ──── */
+.msg-meta-footer {
+  margin-top: 12px;
+}
+.msg-meta-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-active), transparent);
+  margin-bottom: 10px;
+  border-radius: 1px;
+}
+.msg-meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.74rem;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+.msg-meta-icon {
+  font-size: 0.82rem;
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+}
+.msg-meta-label {
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.msg-meta-value {
+  color: var(--accent-cyan);
+  font-weight: 500;
 }
 
 /* ── Chat table (markdown pipe-tables) ───────────────── */

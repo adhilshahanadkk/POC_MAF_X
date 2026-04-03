@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { sendChat, uploadFiles, injectFromDrive, clearChat, downloadReport, deleteDoc, clearAllDocs } from '../api';
 
 const SESSION_ID = 'user-' + Math.random().toString(36).slice(2, 10);
@@ -46,6 +46,12 @@ const IconTrash = () => (
     <path d="M10 11v6"/><path d="M14 11v6"/>
   </svg>
 );
+const IconArrowDown = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+    strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+    <polyline points="6 9 12 15 18 9"/>
+  </svg>
+);
 
 // ── Markdown-lite renderer (bold, code, newlines, **tables**) ────────────────
 function renderInline(text) {
@@ -69,20 +75,58 @@ function parseCells(line) {
   return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
 }
 
+// ── Metadata footer detector ─────────────────────────────────────────────────
+const META_PATTERNS = [
+  { key: 'database', regex: /^Database:\s*(.+)/i, icon: '🗄️', label: 'Database' },
+  { key: 'table',    regex: /^Table:\s*(.+)/i,    icon: '📋', label: 'Table' },
+  { key: 'timestamp',regex: /^Timestamp:\s*(.+)/i,icon: '🕐', label: 'Timestamp' },
+];
+
+function extractMetaFooter(lines) {
+  const meta = {};
+  let cutIndex = lines.length;
+
+  // Scan from the end to find metadata lines
+  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 6); i--) {
+    const trimmed = lines[i].trim();
+    if (!trimmed) continue;
+    let matched = false;
+    for (const pat of META_PATTERNS) {
+      const m = trimmed.match(pat.regex);
+      if (m) {
+        meta[pat.key] = { value: m[1].trim(), icon: pat.icon, label: pat.label };
+        cutIndex = Math.min(cutIndex, i);
+        matched = true;
+        break;
+      }
+    }
+    if (!matched && Object.keys(meta).length > 0) break;
+  }
+
+  if (Object.keys(meta).length === 0) return { bodyLines: lines, meta: null };
+
+  // Remove trailing empty lines before the metadata block
+  let end = cutIndex;
+  while (end > 0 && !lines[end - 1].trim()) end--;
+
+  return { bodyLines: lines.slice(0, end), meta };
+}
+
 function renderText(text) {
   if (!text) return null;
   const lines = text.split('\n');
+  const { bodyLines, meta } = extractMetaFooter(lines);
   const elements = [];
   let i = 0;
 
-  while (i < lines.length) {
+  while (i < bodyLines.length) {
     // Detect a markdown table block
-    if (isTableRow(lines[i]) && i + 1 < lines.length && isSeparator(lines[i + 1])) {
-      const headers = parseCells(lines[i]);
+    if (isTableRow(bodyLines[i]) && i + 1 < bodyLines.length && isSeparator(bodyLines[i + 1])) {
+      const headers = parseCells(bodyLines[i]);
       i += 2; // skip header + separator
       const rows = [];
-      while (i < lines.length && isTableRow(lines[i]) && !isSeparator(lines[i])) {
-        rows.push(parseCells(lines[i]));
+      while (i < bodyLines.length && isTableRow(bodyLines[i]) && !isSeparator(bodyLines[i])) {
+        rows.push(parseCells(bodyLines[i]));
         i++;
       }
       elements.push(
@@ -101,11 +145,28 @@ function renderText(text) {
       );
     } else {
       elements.push(
-        <span key={`ln-${i}`}>{renderInline(lines[i])}{i < lines.length - 1 && <br />}</span>
+        <span key={`ln-${i}`}>{renderInline(bodyLines[i])}{i < bodyLines.length - 1 && <br />}</span>
       );
       i++;
     }
   }
+
+  // Render metadata footer with icons
+  if (meta) {
+    elements.push(
+      <div key="meta-footer" className="msg-meta-footer">
+        <div className="msg-meta-divider" />
+        {META_PATTERNS.map(pat => meta[pat.key] ? (
+          <div key={pat.key} className="msg-meta-row">
+            <span className="msg-meta-icon">{meta[pat.key].icon}</span>
+            <span className="msg-meta-label">{meta[pat.key].label}:</span>
+            <span className="msg-meta-value">{meta[pat.key].value}</span>
+          </div>
+        ) : null)}
+      </div>
+    );
+  }
+
   return elements;
 }
 
@@ -131,9 +192,11 @@ export default function ChatWidget() {
   const [uploadedDocs, setUploadedDocs] = useState([]);
   const [uploadStatus, setUploadStatus] = useState('');
   const [zoomedChart, setZoomedChart]   = useState(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const fileInputRef  = useRef(null);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const textareaRef   = useRef(null);
 
   // Clear old docs on page load/reload — each session starts fresh
@@ -141,10 +204,27 @@ export default function ChatWidget() {
     clearAllDocs().catch(() => {});
   }, []);
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom (only when user is already near bottom)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+    if (isNearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages, pendingCount]);
+
+  // Track scroll position to show/hide scroll-to-bottom button
+  const handleMessagesScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    setShowScrollBtn(distanceFromBottom > 100);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
   // Auto-resize textarea
   const handleInputChange = (e) => {
@@ -314,7 +394,7 @@ export default function ChatWidget() {
           </div>
 
           {/* Messages */}
-          <div className="chat-messages">
+          <div className="chat-messages" ref={messagesContainerRef} onScroll={handleMessagesScroll}>
             {messages.map((msg, i) => (
               <div key={i} className={`msg-row ${msg.role === 'user' ? 'user-row' : ''}`}>
                 <div className={`msg-avatar ${msg.role === 'ai' ? 'ai-av' : 'user-av'}`}>
@@ -368,6 +448,16 @@ export default function ChatWidget() {
               </div>
             )}
             <div ref={messagesEndRef} />
+            {showScrollBtn && (
+              <button
+                className="scroll-to-bottom-btn"
+                onClick={scrollToBottom}
+                aria-label="Scroll to bottom"
+                title="Scroll to bottom"
+              >
+                <IconArrowDown />
+              </button>
+            )}
           </div>
 
           {/* Input area */}

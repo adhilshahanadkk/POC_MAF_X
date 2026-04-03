@@ -99,7 +99,7 @@ def sql_agent_node(state):
         Return EXACT format:
         Answer: <your friendly explanation and suggestions>
         Database: user_db
-        Table: user, subscription
+        Table: users, subscriptions
         Timestamp: {timestamp}
         """
         llm_response = llm.invoke(empty_prompt)
@@ -121,7 +121,7 @@ def sql_agent_node(state):
     Return EXACT format:
     Answer: <clear summary>
     Database: user_db
-    Table: user, subscription
+    Table: users, subscriptions
     Timestamp: {timestamp}
     """
 

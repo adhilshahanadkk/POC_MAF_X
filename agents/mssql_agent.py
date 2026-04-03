@@ -1,7 +1,7 @@
 import re
 from datetime import datetime
 from langchain_core.prompts import PromptTemplate
-from database.mssql_connection import db
+from database.mssql_connection import db, MSSQL_DB_NAME, MSSQL_TABLE_NAMES
 from agents.llm_provider import get_llm
 
 # ---------- LLM ----------
@@ -10,6 +10,13 @@ llm = get_llm(temperature=0.0)
 # ---------- SCHEMA ----------
 # Fetching schema once to provide context to the LLM
 schema_info = db.get_table_info()
+
+# ---------- Helper: extract table names from a SQL query ----------
+def extract_tables_from_sql(sql, known_tables):
+    """Parse the SQL to find which known tables were actually referenced."""
+    sql_upper = sql.upper()
+    used = [t for t in known_tables if t.upper() in sql_upper]
+    return ", ".join(used) if used else MSSQL_TABLE_NAMES
 
 # ---------- MSSQL PROMPT ----------
 # Refined to be extremely clear about the raw output
@@ -81,16 +88,20 @@ def mssql_agent_node(state):
     print(cleaned_sql)
     print("==============================\n")
 
-    # 5. Step Three: Execute against Database
+    # 5. Extract which tables were actually used in the query
+    known_tables = [t.strip() for t in MSSQL_TABLE_NAMES.split(",")]
+    used_tables = extract_tables_from_sql(cleaned_sql, known_tables)
+
+    # 6. Step Three: Execute against Database
     try:
         # Using the underlying db.run() to execute the raw string
-        db_results = db.run(cleaned_sql,fetch="all")
+        db_results = db.run(cleaned_sql, fetch="all")
         print(f"DEBUG db_results: {db_results}")
     except Exception as e:
         print(f"!!! MSSQL Execution Error: {e}")
         db_results = f"Error: The generated SQL was invalid. {str(e)}"
 
-    # 6. Step Four: Format the Final Narrative Answer
+    # 7. Step Four: Format the Final Narrative Answer
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
     # Handle empty results — ask LLM to explain why and suggest alternatives
@@ -108,10 +119,12 @@ def mssql_agent_node(state):
         - NEVER show SQL queries, code, or technical syntax to the user.
         - Keep it concise — 2-3 sentences max plus suggestions.
         
-        Return EXACT format:
+        CRITICAL: Do NOT use ### or ## or # headers in your response.
+
+        Return EXACT format (plain text, no headers):
         Answer: <your friendly explanation and suggestions>
-        Database: CommodityDB
-        Table: CommodityPrices
+        Database: {MSSQL_DB_NAME}
+        Table: {used_tables}
         Timestamp: {timestamp}
         """
         llm_response = llm.invoke(empty_prompt)
@@ -134,13 +147,15 @@ def mssql_agent_node(state):
     - If the query was fetching prices/dates, present them clearly with proper formatting.
     - Include ALL rows from the result — do not skip any.
     - For price data, format like: "COMMODITY: Avg $X | Min $Y | Max $Z" where applicable.
-    - Mention that the data comes from the CommodityDB.
+    - Mention that the data comes from the {MSSQL_DB_NAME} database.
     - NEVER include SQL queries, code, or technical database syntax in your response. The user should only see human-readable results.
 
-    Return EXACT format:
+    CRITICAL: Do NOT use ### or ## or # headers in your response. Do NOT add a "Sources" section.
+
+    Return EXACT format (plain text, no headers):
     Answer: <your explanation based on what the data actually represents>
-    Database: CommodityDB
-    Table: CommodityPrices
+    Database: {MSSQL_DB_NAME}
+    Table: {used_tables}
     Timestamp: {timestamp}
     """
 
@@ -148,4 +163,3 @@ def mssql_agent_node(state):
     final_text = llm_response.content if hasattr(llm_response, "content") else llm_response
 
     return {"final_output": final_text.strip(), "db_results": db_results, "sql_query": cleaned_sql, "should_visualize": should_visualize}
-
