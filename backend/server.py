@@ -29,6 +29,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
+from fastapi import Request
+from ag_ui.core import RunAgentInput
+
 # ── Ensure project root is on sys.path ────────────────────────────────────────
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
@@ -36,7 +39,14 @@ os.chdir(PROJECT_ROOT)  # so relative paths (data/, chroma_db/) resolve correctl
 
 from graph.workflow import build_graph
 from agents.rag_agents.rag_agent import RAGAgent
-from config.settings import GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, GOOGLE_API_KEY, GEMINI_MODEL, VM_BASE_URL
+from agents.agui_runner import run_agui_stream
+from config.settings import (
+    GOOGLE_CLOUD_PROJECT,
+    GOOGLE_CLOUD_LOCATION,
+    GOOGLE_API_KEY,
+    PRIMARY_MODEL,
+    VM_BASE_URL
+)
 from backend.report_generator import generate_pdf, generate_docx
 
 
@@ -324,7 +334,7 @@ def _extract_image_text(img_bytes: bytes, filename: str) -> str:
         "4) Trends, peaks, outliers 5) Visible text/labels. Be precise."
     )
     resp = client.models.generate_content(
-        model=GEMINI_MODEL,
+        model=PRIMARY_MODEL,
         contents=[prompt, image_part]
     )
     return resp.text or str(resp)
@@ -447,3 +457,35 @@ async def status():
         "vm_connected": vm_connected,
         "vm_url": VM_BASE_URL,
     })
+
+@app.post("/api/agui", tags=["AG-UI"])
+async def agui_chat(input_data: RunAgentInput, request: Request):
+    """
+    AG-UI compatible SSE endpoint.
+    Replaces /api/chat for the new streaming ChatWidget.
+    The old /api/chat remains for backward compatibility.
+    """
+    # Reuse the existing session memory system
+    session_id = input_data.thread_id or "default"
+    session    = get_session(session_id)
+    rag        = get_rag()
+    graph      = get_graph()          # ← shared singleton, no duplicate compilation
+
+    async def event_stream():
+        async for chunk in run_agui_stream(
+            input_data=input_data,
+            graph=graph,
+            rag_agent=rag,
+            uploaded_doc_names=list(_uploaded_doc_names),
+            session_memory=session,
+        ):
+            yield chunk
+
+        # ── Update session memory for multi-turn context ──
+        final = session.pop("_agui_final_state", None)
+        if final:
+            session["chat_history"].append(final["query"])
+            session["last_agent"] = final["route"]
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+

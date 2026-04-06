@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { sendChat, uploadFiles, injectFromDrive, clearChat, downloadReport, deleteDoc, clearAllDocs } from '../api';
+import { uploadFiles, injectFromDrive, clearChat, downloadReport, deleteDoc, clearAllDocs } from '../api';
 
 const SESSION_ID = 'user-' + Math.random().toString(36).slice(2, 10);
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // ── Small helper SVGs ────────────────────────────────────────────────────────
 const IconChat = () => (
@@ -21,6 +22,11 @@ const IconSend = () => (
     strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
     <line x1="22" y1="2" x2="11" y2="13"/>
     <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+  </svg>
+);
+const IconStop = () => (
+  <svg viewBox="0 0 24 24" fill="white" width="16" height="16">
+    <rect x="4" y="4" width="16" height="16" rx="2"/>
   </svg>
 );
 const IconAttach = () => (
@@ -53,7 +59,7 @@ const IconArrowDown = () => (
   </svg>
 );
 
-// ── Markdown-lite renderer (bold, code, newlines, **tables**) ────────────────
+// ── Markdown-lite renderer (bold, code, newlines, tables) ────────────────────
 function renderInline(text) {
   return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, j) => {
     if (part.startsWith('**') && part.endsWith('**'))
@@ -86,7 +92,6 @@ function extractMetaFooter(lines) {
   const meta = {};
   let cutIndex = lines.length;
 
-  // Scan from the end to find metadata lines
   for (let i = lines.length - 1; i >= Math.max(0, lines.length - 6); i--) {
     const trimmed = lines[i].trim();
     if (!trimmed) continue;
@@ -105,7 +110,6 @@ function extractMetaFooter(lines) {
 
   if (Object.keys(meta).length === 0) return { bodyLines: lines, meta: null };
 
-  // Remove trailing empty lines before the metadata block
   let end = cutIndex;
   while (end > 0 && !lines[end - 1].trim()) end--;
 
@@ -120,10 +124,9 @@ function renderText(text) {
   let i = 0;
 
   while (i < bodyLines.length) {
-    // Detect a markdown table block
     if (isTableRow(bodyLines[i]) && i + 1 < bodyLines.length && isSeparator(bodyLines[i + 1])) {
       const headers = parseCells(bodyLines[i]);
-      i += 2; // skip header + separator
+      i += 2;
       const rows = [];
       while (i < bodyLines.length && isTableRow(bodyLines[i]) && !isSeparator(bodyLines[i])) {
         rows.push(parseCells(bodyLines[i]));
@@ -151,7 +154,6 @@ function renderText(text) {
     }
   }
 
-  // Render metadata footer with icons
   if (meta) {
     elements.push(
       <div key="meta-footer" className="msg-meta-footer">
@@ -178,15 +180,63 @@ const routeColour = {
   report_agent:  ['#06b6d4', 'rgba(6,182,212,0.12)'],
   multi_agent:   ['#ec4899', 'rgba(236,72,153,0.12)'],
   planner:       ['#ec4899', 'rgba(236,72,153,0.12)'],
+  vm_agent:      ['#3b82f6', 'rgba(59,130,246,0.12)'],
 };
 
+// ── AG-UI SSE streaming function ─────────────────────────────────────────────
+async function* streamAgUI(query, sessionId) {
+  const response = await fetch(`${BASE_URL}/api/agui`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      threadId: sessionId,
+      runId: crypto.randomUUID(),
+      messages: [{ id: crypto.randomUUID(), role: 'user', content: query }],
+      forwardedProps: {},
+      context: [],
+      tools: [],
+      state: {},
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`AG-UI request failed with status ${response.status}`);
+  }
+
+  const reader  = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer    = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop(); // keep last incomplete line in buffer
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (!raw || raw === '[DONE]') continue;
+      try {
+        yield JSON.parse(raw);
+      } catch {
+        // skip malformed SSE lines
+      }
+    }
+  }
+}
+
+// ── Main ChatWidget component ────────────────────────────────────────────────
 export default function ChatWidget() {
   const [open, setOpen]           = useState(false);
   const [messages, setMessages]   = useState([
-    { role: 'ai', text: "Hi! I'm **Transgraph AI**, your commodity risk intelligence assistant."}
+    { role: 'ai', text: "Hi! I'm **Transgraph AI**, your commodity risk intelligence assistant." }
   ]);
   const [input, setInput]         = useState('');
   const [pendingCount, setPendingCount] = useState(0);
+  const [isStreaming, setIsStreaming]   = useState(false);
   const [showDrive, setShowDrive] = useState(false);
   const [driveUrl, setDriveUrl]   = useState('');
   const [uploadedDocs, setUploadedDocs] = useState([]);
@@ -194,17 +244,18 @@ export default function ChatWidget() {
   const [zoomedChart, setZoomedChart]   = useState(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
-  const fileInputRef  = useRef(null);
-  const messagesEndRef = useRef(null);
+  const fileInputRef         = useRef(null);
+  const messagesEndRef       = useRef(null);
   const messagesContainerRef = useRef(null);
-  const textareaRef   = useRef(null);
+  const textareaRef          = useRef(null);
+  const abortRef             = useRef(false); // used to cancel streaming
 
-  // Clear old docs on page load/reload — each session starts fresh
+  // Clear docs on mount
   useEffect(() => {
     clearAllDocs().catch(() => {});
   }, []);
 
-  // Auto-scroll to bottom (only when user is already near bottom)
+  // Auto-scroll to bottom when messages update
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -214,7 +265,7 @@ export default function ChatWidget() {
     }
   }, [messages, pendingCount]);
 
-  // Track scroll position to show/hide scroll-to-bottom button
+  // Track scroll to show/hide scroll button
   const handleMessagesScroll = useCallback(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -233,35 +284,117 @@ export default function ChatWidget() {
     e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
   };
 
-  // ── Send chat message ──────────────────────────────────────────────────────
+  // ── AG-UI handleSend — streams events from /api/agui ──────────────────────
   const handleSend = async () => {
     const q = input.trim();
-    if (!q) return;
+    if (!q || isStreaming) return;
+
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
+
+    // 1. Add user message immediately
     setMessages(prev => [...prev, { role: 'user', text: q }]);
     setPendingCount(c => c + 1);
+    setIsStreaming(true);
+    abortRef.current = false;
+
+    // 2. Add a placeholder AI message we will stream into
+    const msgId = `ai_${Date.now()}`;
+    setMessages(prev => [...prev, {
+      id:         msgId,
+      role:       'ai',
+      text:       '',
+      stepLabel:  '',
+      streaming:  true,
+      route:      null,
+      chart:      null,
+      chartB64:   null,
+      reportText: null,
+    }]);
+
     try {
-      const res = await sendChat(q, SESSION_ID);
-      setMessages(prev => [...prev, {
-        role: 'ai',
-        text: res.answer,
-        route: res.route,
-        chart: res.chart_b64 ? `data:image/png;base64,${res.chart_b64}` : null,
-        reportText: res.report_text || null,
-        chartB64: res.chart_b64 || null,
-      }]);
+      for await (const event of streamAgUI(q, SESSION_ID)) {
+
+        console.log('[AG-UI] Event:', event.type, event);
+
+        // Stop if user cancelled
+        if (abortRef.current) break;
+
+        // ── STEP_STARTED: show live agent step label ──────────────────────
+        if (event.type === 'STEP_STARTED') {
+          console.log('[AG-UI] STEP_STARTED:', event);
+          setMessages(prev => prev.map(m =>
+            m.id === msgId ? { ...m, stepLabel: event.stepName } : m
+          ));
+        }
+
+        // ── TEXT_MESSAGE_CONTENT: stream text word by word ────────────────
+        if (event.type === 'TEXT_MESSAGE_CONTENT') {
+          setMessages(prev => prev.map(m =>
+            m.id === msgId ? { ...m, text: m.text + event.delta } : m
+          ));
+        }
+
+        // ── STATE_SNAPSHOT: chart, route, report arrive here ──────────────
+        if (event.type === 'STATE_SNAPSHOT') {
+          const s = event.snapshot || {};
+          setMessages(prev => prev.map(m =>
+            m.id === msgId ? {
+              ...m,
+              route:      s.route      || null,
+              chart:      s.chart_b64  ? `data:image/png;base64,${s.chart_b64}` : null,
+              chartB64:   s.chart_b64  || null,
+              reportText: s.report_text || null,
+            } : m
+          ));
+        }
+
+        // ── RUN_FINISHED: finalise message, clear step label ─────────────
+        if (event.type === 'RUN_FINISHED') {
+          setMessages(prev => prev.map(m =>
+            m.id === msgId ? { ...m, streaming: false, stepLabel: '' } : m
+          ));
+        }
+
+        // ── RUN_ERROR: show error in bubble ───────────────────────────────
+        if (event.type === 'RUN_ERROR') {
+          setMessages(prev => prev.map(m =>
+            m.id === msgId ? {
+              ...m,
+              streaming:  false,
+              stepLabel:  '',
+              text:       `⚠️ Agent error: ${event.message}`,
+            } : m
+          ));
+        }
+      }
     } catch (err) {
-      setMessages(prev => [...prev, {
-        role: 'ai',
-        text: `⚠️ Error: ${err?.response?.data?.detail || err.message || 'Could not reach the server.'}`,
-      }]);
+      setMessages(prev => prev.map(m =>
+        m.id === msgId ? {
+          ...m,
+          streaming:  false,
+          stepLabel:  '',
+          text:       `⚠️ Error: ${err?.message || 'Could not reach the server.'}`,
+        } : m
+      ));
     } finally {
       setPendingCount(c => c - 1);
+      setIsStreaming(false);
     }
   };
 
-  // ── Keyboard shortcut: Enter to send, Shift+Enter for newline ─────────────
+  // ── Stop streaming mid-response ────────────────────────────────────────────
+  const handleStop = () => {
+    abortRef.current = true;
+    setIsStreaming(false);
+    setPendingCount(0);
+    // Mark the current streaming message as done
+    setMessages(prev => prev.map(m =>
+      m.streaming ? { ...m, streaming: false, stepLabel: '' } : m
+    ));
+  };
+
+  // ── Keyboard shortcut ──────────────────────────────────────────────────────
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
@@ -317,6 +450,8 @@ export default function ChatWidget() {
     }]);
     setUploadStatus('');
     setUploadedDocs([]);
+    setIsStreaming(false);
+    abortRef.current = true;
   };
 
   // ── Delete a single document ───────────────────────────────────────────────
@@ -353,9 +488,10 @@ export default function ChatWidget() {
     }
   };
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ── Floating trigger button ── */}
+      {/* Floating trigger button */}
       <button
         className="chat-trigger"
         onClick={() => setOpen(v => !v)}
@@ -372,9 +508,10 @@ export default function ChatWidget() {
         }
       </button>
 
-      {/* ── Chat window ── */}
+      {/* Chat window */}
       {open && (
         <div className="chat-window">
+
           {/* Header */}
           <div className="chat-header">
             <div className="chat-header-avatar">
@@ -396,27 +533,67 @@ export default function ChatWidget() {
           {/* Messages */}
           <div className="chat-messages" ref={messagesContainerRef} onScroll={handleMessagesScroll}>
             {messages.map((msg, i) => (
-              <div key={i} className={`msg-row ${msg.role === 'user' ? 'user-row' : ''}`}>
+              <div key={msg.id || i} className={`msg-row ${msg.role === 'user' ? 'user-row' : ''}`}>
                 <div className={`msg-avatar ${msg.role === 'ai' ? 'ai-av' : 'user-av'}`}>
                   {msg.role === 'ai' ? '🤖' : '👤'}
                 </div>
                 <div>
                   <div className={`msg-bubble ${msg.role === 'ai' ? 'ai-bubble' : 'user-bubble'}`}>
+
+                    {/* ── AG-UI: live agent step label while streaming ── */}
+                    {msg.streaming && msg.stepLabel && (
+                      <div style={{
+                        display:      'flex',
+                        alignItems:   'center',
+                        gap:          6,
+                        fontSize:     11,
+                        color:        'var(--color-text-secondary, #888)',
+                        marginBottom: 6,
+                      }}>
+                        <span style={{
+                          width:        7,
+                          height:       7,
+                          borderRadius: '50%',
+                          background:   '#3b82f6',
+                          display:      'inline-block',
+                          animation:    'pulse 1s infinite',
+                          flexShrink:   0,
+                        }}/>
+                        {msg.stepLabel}
+                      </div>
+                    )}
+
+                    {/* Message text — your existing renderText, unchanged */}
                     {renderText(msg.text)}
+
+                    {/* Typing dots — shown while streaming but no text yet */}
+                    {msg.streaming && !msg.text && (
+                      <div style={{ display: 'flex', gap: 4, padding: '4px 0' }}>
+                        <div className="typing-dot" />
+                        <div className="typing-dot" />
+                        <div className="typing-dot" />
+                      </div>
+                    )}
+
+                    {/* Chart */}
                     {msg.chart && (
                       <div className="msg-chart" onClick={() => setZoomedChart(msg.chart)}>
                         <img src={msg.chart} alt="Data visualization" />
                       </div>
                     )}
+
+                    {/* Route badge */}
                     {msg.route && routeColour[msg.route] && (
                       <div className="route-badge" style={{
-                        color: routeColour[msg.route][0],
-                        background: routeColour[msg.route][1],
+                        color:       routeColour[msg.route][0],
+                        background:  routeColour[msg.route][1],
                         borderColor: routeColour[msg.route][0] + '40',
                       }}>
                         {msg.route.replace('_', ' ')}
                       </div>
                     )}
+
+                    {/* Report download buttons */}
                     {msg.reportText && (
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                         <button
@@ -433,11 +610,14 @@ export default function ChatWidget() {
                         </button>
                       </div>
                     )}
+
                   </div>
                 </div>
               </div>
             ))}
-            {pendingCount > 0 && (
+
+            {/* Fallback typing indicator for non-streaming pending state */}
+            {pendingCount > 0 && !isStreaming && (
               <div className="msg-row">
                 <div className="msg-avatar ai-av">🤖</div>
                 <div className="typing-bubble">
@@ -447,7 +627,9 @@ export default function ChatWidget() {
                 </div>
               </div>
             )}
+
             <div ref={messagesEndRef} />
+
             {showScrollBtn && (
               <button
                 className="scroll-to-bottom-btn"
@@ -462,6 +644,7 @@ export default function ChatWidget() {
 
           {/* Input area */}
           <div className="chat-input-area">
+
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
@@ -505,6 +688,7 @@ export default function ChatWidget() {
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
+                disabled={isStreaming}
               />
 
               {/* Attach files */}
@@ -512,6 +696,7 @@ export default function ChatWidget() {
                 className="input-action"
                 onClick={() => fileInputRef.current?.click()}
                 title="Upload document (PDF, DOCX, CSV, XLSX, image)"
+                disabled={isStreaming}
               >
                 <IconAttach />
               </button>
@@ -522,24 +707,41 @@ export default function ChatWidget() {
                 onClick={() => setShowDrive(v => !v)}
                 title="Inject from Google Drive folder"
                 style={{ color: showDrive ? 'var(--accent-blue)' : undefined }}
+                disabled={isStreaming}
               >
                 <IconDrive />
               </button>
 
-              {/* Send */}
-              <button
-                className="send-btn"
-                onClick={handleSend}
-                disabled={!input.trim()}
-                title="Send message"
-              >
-                <IconSend />
-              </button>
+              {/* Send / Stop button — toggles during streaming */}
+              {isStreaming ? (
+                <button
+                  className="send-btn"
+                  onClick={handleStop}
+                  title="Stop generation"
+                >
+                  <IconStop />
+                </button>
+              ) : (
+                <button
+                  className="send-btn"
+                  onClick={handleSend}
+                  disabled={!input.trim()}
+                  title="Send message"
+                >
+                  <IconSend />
+                </button>
+              )}
             </div>
 
             {uploadStatus && (
-              <p className="upload-status" style={uploadStatus.startsWith('⚠') ? { color: '#ef4444', fontWeight: 600 } : undefined}>{uploadStatus}</p>
+              <p
+                className="upload-status"
+                style={uploadStatus.startsWith('⚠') ? { color: '#ef4444', fontWeight: 600 } : undefined}
+              >
+                {uploadStatus}
+              </p>
             )}
+
             {uploadedDocs.length > 0 && (
               <div className="active-docs-list">
                 <div className="active-docs-header">
@@ -567,6 +769,7 @@ export default function ChatWidget() {
                 </div>
               </div>
             )}
+
           </div>
         </div>
       )}

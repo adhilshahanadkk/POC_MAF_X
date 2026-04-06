@@ -75,3 +75,56 @@ export async function downloadReport(reportText, format = 'pdf', chartB64 = null
   link.click();
   URL.revokeObjectURL(link.href);
 }
+// Add this to your existing api.js
+
+/**
+ * AG-UI protocol streaming chat.
+ * Calls /api/agui and returns an async generator of parsed events.
+ */
+export async function* streamAgUI(query, sessionId = 'default') {
+  const response = await fetch(
+    `${BASE_URL}/api/agui`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        thread_id: sessionId,
+        messages: [{ role: 'user', content: query }],
+        // AG-UI RunAgentInput required fields
+        run_id: crypto.randomUUID(),
+        forwarded_props: {},
+        context: [],
+        tools: [],
+        state: null,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`AG-UI endpoint error: ${response.status}`);
+  }
+
+  const reader  = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer    = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop(); // keep last incomplete line
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (!raw || raw === '[DONE]') continue;
+      try {
+        yield JSON.parse(raw);
+      } catch {
+        // skip malformed lines
+      }
+    }
+  }
+}

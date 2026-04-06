@@ -12,13 +12,16 @@ def connect_mssql():
         print("Connection failed:", e)
         return None
 
+
+db = connect_mssql()
+
+# ── Dynamically extract DB name and table names ──────────────────────────────
 MSSQL_DB_NAME = "unknown_db"
 MSSQL_TABLE_NAMES = "unknown"
-db = connect_mssql()
 
 if db:
     print("mssql Connected!")
-    # Extract DB name from URI (e.g. mysql+pymysql://user:pass@host/my_database)
+    # Extract DB name from URI (e.g. mssql+pyodbc://DESKTOP-R56SONK\SQLEXPRESS/client_db?driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes)
     try:
         from urllib.parse import urlparse
         parsed = urlparse(MSSQL_URI)

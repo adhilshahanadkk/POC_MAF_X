@@ -1,23 +1,21 @@
 from datetime import datetime
-from agents.llm_provider import get_llm
+from utils.llm_retry import invoke_with_fallback
 
-llm = get_llm(temperature=0.0)
 
 def report_agent_node(state):
     # 1. ROBUST DATA RETRIEVAL
-    # In a multi-agent flow, data might be in 'final_output' (from combiner)
-    # or 'multi_results' (raw list from executor).
     raw_data = state.get("final_output")
+
     if not raw_data:
         raw_data = state.get("multi_results")
-        
+
     # Read chart buffer from state
-    chart_buffer=state.get("chart_buffer")
+    chart_buffer = state.get("chart_buffer")
+
     # 2. TIMESTAMP GENERATION
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
     # 3. PROMPT PREPARATION
-    # We use .format() to inject the dynamic variables into your template
     report_template = """
 ### ROLE
 You are an Executive Reporting Specialist. Your mission is to transform raw system data into a high-quality, structured business report.
@@ -60,21 +58,21 @@ Provide the report in Markdown format. Ensure it looks like a physical document.
 ### 4. Conclusion
 <Final summary here>
 """
-    # Inject variables into the prompt
-    final_prompt = report_template.format(data=raw_data, date=timestamp)
 
-    # 4. INVOKE LLM
-    response = llm.invoke(final_prompt)
+    final_prompt = report_template.format(
+        data=raw_data,
+        date=timestamp
+    )
+
+    response = invoke_with_fallback(
+        final_prompt,
+        temperature=0.0
+    )
+
     report_content = response.content if hasattr(response, "content") else response
 
-    # 5. RETURN STATE
     return {
-        "report_text": report_content, 
+        "report_text": report_content,
         "final_output": "The requested report has been generated. You can download the PDF and DOCX versions below.",
         "route": "report_agent"
     }
-
-
-
-
-
