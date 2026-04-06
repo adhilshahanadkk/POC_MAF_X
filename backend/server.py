@@ -36,7 +36,13 @@ os.chdir(PROJECT_ROOT)  # so relative paths (data/, chroma_db/) resolve correctl
 
 from graph.workflow import build_graph
 from agents.rag_agents.rag_agent import RAGAgent
-from config.settings import GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, GOOGLE_API_KEY, GEMINI_MODEL, VM_BASE_URL
+from config.settings import (
+    GOOGLE_CLOUD_PROJECT,
+    GOOGLE_CLOUD_LOCATION,
+    GOOGLE_API_KEY,
+    PRIMARY_MODEL,
+    VM_BASE_URL
+)
 from backend.report_generator import generate_pdf, generate_docx
 
 
@@ -324,7 +330,7 @@ def _extract_image_text(img_bytes: bytes, filename: str) -> str:
         "4) Trends, peaks, outliers 5) Visible text/labels. Be precise."
     )
     resp = client.models.generate_content(
-        model=GEMINI_MODEL,
+        model=PRIMARY_MODEL,
         contents=[prompt, image_part]
     )
     return resp.text or str(resp)

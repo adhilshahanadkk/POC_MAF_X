@@ -1,20 +1,18 @@
 from datetime import datetime
-from agents.llm_provider import get_llm
+from utils.llm_retry import invoke_with_fallback
 from database.mysql_connection import MYSQL_DB_NAME, MYSQL_TABLE_NAMES
 from database.mssql_connection import MSSQL_DB_NAME, MSSQL_TABLE_NAMES
 
-llm = get_llm(temperature=0.0)
-
 
 def combiner_node(state):
-    results=state.get("multi_results", [])
-    query=state.get("query")
-    should_visualize = state.get("should_visualize", False)  # Inherit from planner
+    results = state.get("multi_results", [])
+    query = state.get("query")
+    should_visualize = state.get("should_visualize", False)
 
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
-    combiner_context="\n\n".join(results)
-    print("combiner_context",combiner_context)
+    combiner_context = "\n\n".join(results)
+    print("combiner_context", combiner_context)
 
     prompt = f"""
 ROLE: You are a Senior Data Synthesis Expert. Your task is to take raw outputs from multiple specialized agents and craft a polished, executive-level response for the end-user.
@@ -50,10 +48,17 @@ Table: <list the actual table names, e.g., {MYSQL_TABLE_NAMES}, {MSSQL_TABLE_NAM
 Timestamp: {timestamp}
 """
 
-    answer = llm.invoke(prompt)
+    answer = invoke_with_fallback(
+        prompt,
+        temperature=0.0
+    )
 
     if hasattr(answer, "content"):
         answer = answer.content
-    print("Combiner answer:", answer)
-    return {"final_output": answer, "should_visualize": should_visualize}
 
+    print("Combiner answer:", answer)
+
+    return {
+        "final_output": answer,
+        "should_visualize": should_visualize
+    }
