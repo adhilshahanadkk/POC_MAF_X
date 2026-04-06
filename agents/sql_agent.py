@@ -182,10 +182,24 @@ def sql_agent_node(state):
             pandasai_response = process_with_pandasai(df, original_query)
             print(f"🔍 PandasAI response: {pandasai_response}")
 
-            enhanced_answer = f"""{final_output}
+            # Split body and metadata so Enhanced Analysis appears before metadata
+            lines = final_output.split('\n')
+            body_lines = []
+            meta_lines = []
+            for line in lines:
+                if any(line.strip().startswith(p) for p in ['Database:', 'Table:', 'Timestamp:']):
+                    meta_lines.append(line)
+                else:
+                    body_lines.append(line)
+            body = '\n'.join(body_lines).strip()
+            meta = '\n'.join(meta_lines).strip()
+
+            enhanced_answer = f"""{body}
 
 📊 Enhanced Analysis:
-{pandasai_response}"""
+{pandasai_response}
+
+{meta}"""
         except Exception as e:
             print(f"❌ PandasAI error: {e}")
             enhanced_answer = final_output

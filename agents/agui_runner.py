@@ -101,11 +101,14 @@ async def run_agui_stream(
                 ))
                 # Accumulate state from each node's output
                 node_output = event.get("data", {}).get("output", {})
+                print(f"[agui_runner] on_chain_end output for {name!r}: type={type(node_output).__name__}, keys={list(node_output.keys()) if isinstance(node_output, dict) else 'N/A'}")
                 if isinstance(node_output, dict):
                     final_state.update(node_output)
 
         # ── Stream final answer as TEXT_MESSAGE events ────────────────────
         answer = final_state.get("final_output", "")
+        print(f"[agui_runner] final_state keys: {list(final_state.keys())}")    
+        print(f"[agui_runner] final_output type={type(answer).__name__}, len={len(str(answer))}, preview={str(answer)[:100]!r}")
         if isinstance(answer, list):
             answer = "\n".join(str(x) for x in answer)
         elif not isinstance(answer, str):
