@@ -37,7 +37,8 @@ STRICT RULES:
 6. If using UNION or UNION ALL, you MUST place ORDER BY only once at the very end of the entire query.
 7. ORDER BY cannot appear before UNION in T-SQL.
 8. If the task requires a comparison or percentage change, write a single efficient query.
-9. The dataset is historical (starting from 2006). When a user asks for 'the last 6 months' or 'current price,' do NOT use GETDATE(). Instead, always find the MAX(Date) in the table and treat that as 'Today'."
+9. The dataset is historical (starting from 2006). When a user asks for 'the last 6 months' or 'current price,' do NOT use GETDATE(). Instead, always find the MAX(Date) in the table and treat that as 'Today'.
+10. NEVER use LIMIT. T-SQL does not support LIMIT. Use SELECT TOP N instead (e.g., SELECT TOP 1 ... ORDER BY [Date] DESC)."
 
 Schema:
 {schema}

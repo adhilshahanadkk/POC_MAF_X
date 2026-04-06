@@ -27,3 +27,5 @@ schedule
 fastapi
 uvicorn[standard]
 python-multipart
+ag-ui-protocol
+copilotkit

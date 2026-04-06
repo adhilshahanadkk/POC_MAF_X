@@ -15,7 +15,24 @@ def connect_mssql():
 
 db = connect_mssql()
 
+# ── Dynamically extract DB name and table names ──────────────────────────────
+MSSQL_DB_NAME = "unknown_db"
+MSSQL_TABLE_NAMES = "unknown"
+
 if db:
-    print("MSSQLConnected!")
+    print("mssql Connected!")
+    # Extract DB name from URI (e.g. mssql+pyodbc://DESKTOP-R56SONK\SQLEXPRESS/client_db?driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes)
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(MSSQL_URI)
+        MSSQL_DB_NAME = parsed.path.lstrip("/").split("?")[0] or "unknown_db"
+    except Exception:
+        pass
+    # Extract table names from live schema
+    try:
+        MSSQL_TABLE_NAMES = ", ".join(db.get_usable_table_names())
+    except Exception:
+        pass
+    print(f"  → DB: {MSSQL_DB_NAME}  |  Tables: {MSSQL_TABLE_NAMES}")
 else:
     print("Not connected!")
