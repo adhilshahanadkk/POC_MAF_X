@@ -200,8 +200,14 @@ async def chat(req: ChatRequest):
     result = graph.invoke(state_input)
 
     # Update session
-    session["chat_history"].append(req.query)
+    session["chat_history"].append(f"User: {req.query}")
     session["last_agent"] = result.get("route")
+    raw_answer = result.get("final_output", "")
+    if isinstance(raw_answer, list):
+        raw_answer = "\n".join(str(x) for x in raw_answer)
+    elif not isinstance(raw_answer, str):
+        raw_answer = str(raw_answer) if raw_answer else ""
+    session["chat_history"].append(f"AI ({result.get('route', 'unknown')}): {raw_answer[:500]}")
     session.update({k: v for k, v in result.items()
                     if k not in ("chart_buffer", "rag_agent")})
 
@@ -484,7 +490,8 @@ async def agui_chat(input_data: RunAgentInput, request: Request):
         # ── Update session memory for multi-turn context ──
         final = session.pop("_agui_final_state", None)
         if final:
-            session["chat_history"].append(final["query"])
+            session["chat_history"].append(f"User: {final['query']}")
+            session["chat_history"].append(f"AI ({final['route']}): {final.get('answer', '')[:500]}")
             session["last_agent"] = final["route"]
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

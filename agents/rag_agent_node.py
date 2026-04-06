@@ -12,13 +12,21 @@ def _get_fallback_rag():
 
 def rag_agent_node(state):
     query = state.get("query")
+    chat_history = state.get("chat_history", [])
 
     # Use the server-managed RAG agent (rebuilt after uploads) if available
     rag = state.get("rag_agent")
     if rag is None:
         rag = _get_fallback_rag()
 
-    rag_answer = rag.run(query)
+    # Include chat history as context for better answers
+    if chat_history:
+        history_context = "\n".join(chat_history[-10:])
+        enriched_query = f"CONVERSATION HISTORY:\n{history_context}\n\nCURRENT QUESTION: {query}"
+    else:
+        enriched_query = query
+
+    rag_answer = rag.run(enriched_query)
 
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 

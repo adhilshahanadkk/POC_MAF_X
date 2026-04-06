@@ -12,7 +12,7 @@ MSSQL_URI = os.getenv("MSSQL_URI")
 VM_BASE_URL = os.getenv("VM_BASE_URL", "http://localhost:8010")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 
-PRIMARY_MODEL = os.getenv("PRIMARY_MODEL", "gemini-2.5-flash")
+PRIMARY_MODEL = os.getenv("PRIMARY_MODEL", "gemini-2.5-flash-lite")
 
 FALLBACK_MODELS = [
     "gemini-2.5-flash-lite",

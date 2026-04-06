@@ -9,6 +9,19 @@ def report_agent_node(state):
     if not raw_data:
         raw_data = state.get("multi_results")
 
+    # Read chat history for context
+    chat_history = state.get("chat_history", [])
+    history_context = "\n".join(chat_history[-20:]) if chat_history else ""
+
+    if raw_data and history_context:
+        # Both data and history available — combine them
+        raw_data = f"CONVERSATION HISTORY:\n{history_context}\n\nCURRENT DATA:\n{raw_data}"
+    elif not raw_data and history_context:
+        # No current data — generate report purely from chat history
+        raw_data = f"Generate a comprehensive report based on the following conversation:\n\n{history_context}"
+    elif not raw_data:
+        raw_data = "No data available. Please ask some questions first before generating a report."
+
     # Read chart buffer from state
     chart_buffer = state.get("chart_buffer")
 

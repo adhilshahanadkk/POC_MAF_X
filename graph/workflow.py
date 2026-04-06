@@ -60,6 +60,14 @@ def should_generate_chart(state):
 
 
 
+def combiner_router(state):
+    """Route combiner output: report queries → report_agent, otherwise → graph_agent."""
+    query = state.get("query", "").lower()
+    if "report" in query or "generate a report" in query or "export" in query:
+        return "report_agent"
+    return "graph_agent"
+
+
 def router(state):
     return state["route"]
 
@@ -122,8 +130,9 @@ def build_graph():
     workflow.add_edge("executor", "combiner")
     workflow.add_conditional_edges(
         "combiner",
-        should_generate_chart,
+        combiner_router,
         {
+            "report_agent": "report_agent",
             "graph_agent": "graph_agent",
             "end": END
         }

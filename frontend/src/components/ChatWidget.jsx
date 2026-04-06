@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { uploadFiles, injectFromDrive, clearChat, downloadReport, deleteDoc, clearAllDocs } from '../api';
 
 const SESSION_ID = 'user-' + Math.random().toString(36).slice(2, 10);
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
 
 // ── Small helper SVGs ────────────────────────────────────────────────────────
 const IconChat = () => (
@@ -190,8 +190,12 @@ async function* streamAgUI(query, sessionId) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       threadId: sessionId,
-      runId: crypto.randomUUID(),
-      messages: [{ id: crypto.randomUUID(), role: 'user', content: query }],
+      runId: (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
+      messages: [{ id: (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2, 15) + Date.now().toString(36), role: 'user', content: query }],
       forwardedProps: {},
       context: [],
       tools: [],
@@ -250,10 +254,6 @@ export default function ChatWidget() {
   const textareaRef          = useRef(null);
   const abortRef             = useRef(false); // used to cancel streaming
 
-  // Clear docs on mount
-  useEffect(() => {
-    clearAllDocs().catch(() => {});
-  }, []);
 
   // Auto-scroll to bottom when messages update
   useEffect(() => {

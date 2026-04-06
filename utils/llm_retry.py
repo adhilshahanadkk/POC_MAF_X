@@ -11,7 +11,8 @@ RETRYABLE_ERRORS = [
     "internal",
     "unavailable",
     "429",
-    "503"
+    "503",
+    "not subscriptable",
 ]
 
 def invoke_with_fallback(messages, temperature=0.2):

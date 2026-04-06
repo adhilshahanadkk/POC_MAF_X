@@ -65,6 +65,71 @@ async def run_agui_stream(
         run_id=run_id,
     ))
 
+    # ── CHECK: Is this a conversational/meta question? ────────────────────
+    # If so, answer directly from chat_history without invoking the graph
+    conversational_keywords = [
+        "previous question", "last question", "what did i ask",
+        "what did you say", "what was my", "repeat", "our conversation",
+        "chat history", "last answer", "earlier question",
+    ]
+    query_lower = query.lower().strip()
+    chat_history = session_memory.get("chat_history", [])
+    is_conversational = any(kw in query_lower for kw in conversational_keywords)
+
+    if is_conversational:
+        if not chat_history:
+            answer = "No previous conversation found. This is a new session — please ask a question first!"
+        else:
+            # Build a targeted answer based on what the user is asking
+            user_questions = [h.replace("User: ", "") for h in chat_history if h.startswith("User: ")]
+            ai_answers = [h for h in chat_history if h.startswith("AI (")]
+
+            if "previous question" in query_lower or "last question" in query_lower or "what did i ask" in query_lower:
+                if user_questions:
+                    answer = f"Your previous question was:\n\n\"{user_questions[-1]}\""
+                else:
+                    answer = "You haven't asked any questions yet in this session."
+            elif "last answer" in query_lower or "what did you say" in query_lower:
+                if ai_answers:
+                    last_answer = ai_answers[-1].split("): ", 1)[-1] if "): " in ai_answers[-1] else ai_answers[-1]
+                    answer = f"My previous answer was:\n\n{last_answer}"
+                else:
+                    answer = "I haven't provided any answers yet in this session."
+            else:
+                # General conversation history request
+                history_text = "\n".join(chat_history[-20:])
+                answer = f"Here is your conversation history:\n\n{history_text}"
+
+        message_id = str(uuid.uuid4())
+        yield encoder.encode(TextMessageStartEvent(
+            type=EventType.TEXT_MESSAGE_START,
+            message_id=message_id,
+            role="assistant",
+        ))
+        yield encoder.encode(TextMessageContentEvent(
+            type=EventType.TEXT_MESSAGE_CONTENT,
+            message_id=message_id,
+            delta=answer,
+        ))
+        yield encoder.encode(TextMessageEndEvent(
+            type=EventType.TEXT_MESSAGE_END,
+            message_id=message_id,
+        ))
+
+        # Update session memory
+        session_memory["_agui_final_state"] = {
+            "query": query,
+            "route": "chat_history",
+            "answer": answer,
+        }
+
+        yield encoder.encode(RunFinishedEvent(
+            type=EventType.RUN_FINISHED,
+            thread_id=thread_id,
+            run_id=run_id,
+        ))
+        return  # ← skip graph entirely
+
     state_input = {
         **session_memory,
         "query":              query,

@@ -82,8 +82,13 @@ def mssql_agent_node(state):
     task = state.get("task")
     context_data = state.get("context_data", [])
     should_visualize = state.get("should_visualize", False)
+    chat_history = state.get("chat_history", [])
 
-    execution_input = f"TASK: {task}\nPREVIOUS FINDINGS: {context_data}\nORIGINAL QUESTION: {original_query}"
+    history_context = "\n".join(chat_history[-10:]) if chat_history else ""
+    if history_context:
+        execution_input = f"CONVERSATION HISTORY:\n{history_context}\n\nTASK: {task}\nPREVIOUS FINDINGS: {context_data}\nORIGINAL QUESTION: {original_query}"
+    else:
+        execution_input = f"TASK: {task}\nPREVIOUS FINDINGS: {context_data}\nORIGINAL QUESTION: {original_query}"
 
     print(f"--- MSSQL Agent: Generating SQL ---")
 

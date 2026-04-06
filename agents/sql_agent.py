@@ -76,10 +76,14 @@ def sql_agent_node(state):
     original_query = state.get("query")
     planned_task = state.get("task")
     context_data = state.get("context_data", [])
+    chat_history = state.get("chat_history", [])
 
     # 2. Construct the focused input
+    history_context = "\n".join(chat_history[-10:]) if chat_history else ""
     if planned_task:
         execution_input = f"TASK: {planned_task}\nPREVIOUS FINDINGS: {context_data}\nORIGINAL USER QUERY: {original_query}"
+    elif history_context:
+        execution_input = f"CONVERSATION HISTORY:\n{history_context}\n\nCURRENT QUESTION: {original_query}"
     else:
         execution_input = original_query
 
