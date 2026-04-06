@@ -29,3 +29,4 @@ uvicorn[standard]
 python-multipart
 ag-ui-protocol
 copilotkit
+pip install pandasai google-generativeai
