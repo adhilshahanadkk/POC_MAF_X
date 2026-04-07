@@ -48,6 +48,7 @@ from config.settings import (
     VM_BASE_URL
 )
 from backend.report_generator import generate_pdf, generate_docx
+from utils.langfuse_handler import get_langfuse_handler, flush_langfuse
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -124,6 +125,7 @@ async def startup():
     print("[server] Compiling LangGraph workflow...")
     get_graph()
     print("[server] ✅ LangGraph ready.")
+    print("[server] ✅ Langfuse tracing active.")
 
     try:
         from services.wordpress_fetcher import test_connection
@@ -197,7 +199,15 @@ async def chat(req: ChatRequest):
         "uploaded_doc_names": list(_uploaded_doc_names),
     }
 
-    result = graph.invoke(state_input)
+    # ── Langfuse tracing for legacy endpoint ──
+    lf_handler = get_langfuse_handler(
+        session_id=req.session_id,
+        trace_name="legacy_chat",
+        tags=["legacy", "sync"],
+    )
+    run_config = {"callbacks": [lf_handler]} if lf_handler else {}
+
+    result = graph.invoke(state_input, config=run_config)
 
     # Update session
     session["chat_history"].append(f"User: {req.query}")
@@ -496,3 +506,9 @@ async def agui_chat(input_data: RunAgentInput, request: Request):
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
+
+@app.on_event("shutdown")
+async def shutdown():
+    """Flush pending Langfuse events on server shutdown."""
+    flush_langfuse()
+    print("[server] Langfuse events flushed.")

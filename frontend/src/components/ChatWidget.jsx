@@ -254,7 +254,11 @@ export default function ChatWidget() {
   const textareaRef          = useRef(null);
   const abortRef             = useRef(false); // used to cancel streaming
 
-
+//----Manually Edited----//
+  useEffect(()=>{
+    clearAllDocs().catch(() => {});
+  },[]);
+//----Manually Edited----//
   // Auto-scroll to bottom when messages update
   useEffect(() => {
     const container = messagesContainerRef.current;
@@ -537,8 +541,7 @@ export default function ChatWidget() {
                 <div className={`msg-avatar ${msg.role === 'ai' ? 'ai-av' : 'user-av'}`}>
                   {msg.role === 'ai' ? '🤖' : '👤'}
                 </div>
-                <div>
-                  <div className={`msg-bubble ${msg.role === 'ai' ? 'ai-bubble' : 'user-bubble'}`}>
+                <div className={`msg-bubble ${msg.role === 'ai' ? 'ai-bubble' : 'user-bubble'}`}>
 
                     {/* ── AG-UI: live agent step label while streaming ── */}
                     {msg.streaming && msg.stepLabel && (
@@ -611,7 +614,6 @@ export default function ChatWidget() {
                       </div>
                     )}
 
-                  </div>
                 </div>
               </div>
             ))}

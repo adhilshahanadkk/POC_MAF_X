@@ -15,8 +15,25 @@ RETRYABLE_ERRORS = [
     "not subscriptable",
 ]
 
-def invoke_with_fallback(messages, temperature=0.2):
+def invoke_with_fallback(messages, temperature=0.2, langfuse_handler=None):
+    """
+    Invoke the LLM with automatic model fallback.
+
+    Parameters
+    ----------
+    messages : str or list
+        The prompt / message(s) to send to the LLM.
+    temperature : float
+        Sampling temperature.
+    langfuse_handler : CallbackHandler | None
+        If provided, traces this invocation in Langfuse.
+    """
     last_error = None
+
+    # Build the config dict with callbacks when a handler is available
+    config = {}
+    if langfuse_handler is not None:
+        config["callbacks"] = [langfuse_handler]
 
     for model_name in FALLBACK_MODELS:
         try:
@@ -27,7 +44,7 @@ def invoke_with_fallback(messages, temperature=0.2):
                 temperature=temperature
             )
 
-            response = llm.invoke(messages)
+            response = llm.invoke(messages, config=config) if config else llm.invoke(messages)
 
             print(f"Success with model: {model_name}")
 

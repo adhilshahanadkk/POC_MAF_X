@@ -12,6 +12,7 @@ from ag_ui.core import (
     StateSnapshotEvent,
 )
 from ag_ui.encoder import EventEncoder
+from utils.langfuse_handler import get_langfuse_handler
 
 
 # Map LangGraph node names → human-readable step labels shown in the UI
@@ -65,6 +66,46 @@ async def run_agui_stream(
         run_id=run_id,
     ))
 
+    query_lower = query.lower().strip()
+
+    # ── CHECK: Is this a simple greeting? ────────────────────────────────
+    # If so, respond immediately without invoking the graph
+    greeting_patterns = {
+        "hi", "hello", "hey", "hii", "hiii", "yo", "sup",
+        "good morning", "good afternoon", "good evening",
+        "howdy", "hola", "namaste", "greetings",
+    }
+    if query_lower in greeting_patterns or query_lower.rstrip("!.,") in greeting_patterns:
+        greeting_answer = "Hello! How can I help you today?"
+        message_id = str(uuid.uuid4())
+        yield encoder.encode(TextMessageStartEvent(
+            type=EventType.TEXT_MESSAGE_START,
+            message_id=message_id,
+            role="assistant",
+        ))
+        yield encoder.encode(TextMessageContentEvent(
+            type=EventType.TEXT_MESSAGE_CONTENT,
+            message_id=message_id,
+            delta=greeting_answer,
+        ))
+        yield encoder.encode(TextMessageEndEvent(
+            type=EventType.TEXT_MESSAGE_END,
+            message_id=message_id,
+        ))
+
+        session_memory["_agui_final_state"] = {
+            "query": query,
+            "route": "greeting",
+            "answer": greeting_answer,
+        }
+
+        yield encoder.encode(RunFinishedEvent(
+            type=EventType.RUN_FINISHED,
+            thread_id=thread_id,
+            run_id=run_id,
+        ))
+        return  # ← skip graph entirely
+
     # ── CHECK: Is this a conversational/meta question? ────────────────────
     # If so, answer directly from chat_history without invoking the graph
     conversational_keywords = [
@@ -72,7 +113,6 @@ async def run_agui_stream(
         "what did you say", "what was my", "repeat", "our conversation",
         "chat history", "last answer", "earlier question",
     ]
-    query_lower = query.lower().strip()
     chat_history = session_memory.get("chat_history", [])
     is_conversational = any(kw in query_lower for kw in conversational_keywords)
 
@@ -140,9 +180,17 @@ async def run_agui_stream(
 
     final_state = {}
 
+    # ── Langfuse tracing ──────────────────────────────────────────────────
+    langfuse_handler = get_langfuse_handler(
+        session_id=thread_id,
+        trace_name="agui_chat",
+        tags=["agui", "streaming"],
+    )
+    run_config = {"callbacks": [langfuse_handler]} if langfuse_handler else {}
+
     try:
         # astream_events streams node-level lifecycle events from LangGraph
-        async for event in graph.astream_events(state_input, version="v2"):
+        async for event in graph.astream_events(state_input, version="v2", config=run_config):
             kind = event.get("event", "")
             name = event.get("name", "")
 

@@ -621,7 +621,6 @@ body::before {
 /* Individual message bubbles */
 .msg-row { display: flex; gap: 8px; align-items: flex-start; }
 .msg-row.user-row { flex-direction: row-reverse; }
-.msg-row.user-row .msg-bubble { margin-left: auto; }
 
 .msg-avatar {
   width: 28px; height: 28px;
