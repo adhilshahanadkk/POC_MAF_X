@@ -85,10 +85,11 @@ def mssql_agent_node(state):
     chat_history = state.get("chat_history", [])
 
     history_context = "\n".join(chat_history[-10:]) if chat_history else ""
+    task_line = f"TASK: {task}\n" if task else ""
     if history_context:
-        execution_input = f"CONVERSATION HISTORY:\n{history_context}\n\nTASK: {task}\nPREVIOUS FINDINGS: {context_data}\nORIGINAL QUESTION: {original_query}"
+        execution_input = f"CONVERSATION HISTORY:\n{history_context}\n\n{task_line}PREVIOUS FINDINGS: {context_data}\nORIGINAL QUESTION: {original_query}"
     else:
-        execution_input = f"TASK: {task}\nPREVIOUS FINDINGS: {context_data}\nORIGINAL QUESTION: {original_query}"
+        execution_input = f"{task_line}PREVIOUS FINDINGS: {context_data}\nORIGINAL QUESTION: {original_query}" if task else original_query
 
     print(f"--- MSSQL Agent: Generating SQL ---")
 
