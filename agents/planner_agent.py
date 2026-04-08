@@ -125,5 +125,8 @@ def planner_agent_node(state):
 
         return {
             "plan": [],
-            "error": "Failed to parse planner output"
+            "error": "Failed to parse planner output",
+            "full_tasks": [],
+            "should_visualize": False,
+            "error": f"Planner failed: {str(e)}"
         }

@@ -30,7 +30,9 @@ def execute_agents_node(state):
                 worker_input = {
                     "query": state.get("query"),
                     "task": task_description,
-                    "context_data": state["context_data"] 
+                    "context_data": state["context_data"] ,
+                    "rag_agent": state.get("rag_agent"),   # ← pass through
+                    "chat_history": state.get("chat_history", []),
                 }
 
                 # 2. Route to the specialized agent node

@@ -76,6 +76,7 @@ def sql_agent_node(state):
     original_query = state.get("query")
     planned_task = state.get("task")
     context_data = state.get("context_data", [])
+    should_visualize = state.get("should_visualize", False)
     chat_history = state.get("chat_history", [])
 
     # 2. Construct the focused input
@@ -214,5 +215,5 @@ def sql_agent_node(state):
         "final_output": enhanced_answer.strip(),
         "db_results": db_results,
         "sql_query": cleaned_sql,
-        "should_visualize": True
+        "should_visualize": should_visualize
     }
